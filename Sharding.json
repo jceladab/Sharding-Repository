@@ -1,0 +1,106 @@
+
+/** Iniciamos levantando el Cluster de réplica **/  //Consola 1//
+
+cluster = new ShardingTest ({shards: 3, chunksize:1})
+
+
+/** Verificamos las carpetas donde se alojarán las particiones **/
+
+
+/** Nos conectamos a nuestra base de datos de prueba **/  //Consola 2 - Balancer//
+
+db = (new Mongo("localhost:20006")).getDB("Mundial") 
+
+/** Luego para tener data de muestra sobre el proceso, ingresamos unos 100000 documentos a la tabla Espectadores de nuestra BD **/ 
+
+for(i=0;i<10000;i++){
+	db.Espectadores.insert({_id : +i, Nombre : "Espectador" +i, Fecha : new Date()});
+}
+
+/** También otros cuantos documentos a otra tabla **/
+
+db.Equipos.insertMany([
+    {_id:33, Continente: "America", Nombre: "Colombia"},
+    {_id:34, Continente: "Oceania", Nombre: "Nueva Zelanda"},
+    {_id:35, Continente: "Africa", Nombre: "Nigeria"},
+    {_id:36, Continente: "Europa", Nombre: "Noruega"},
+    {_id:37, Continente: "Asia", Nombre: "Emiratos Arabes Unidos"}
+]);
+
+
+/** Últimos documentos en otra tabla **/
+
+db.DirectoresTecnicos.insertMany([
+    {_id:33, Nombre: "Nestor Lorenzo", Seleccion: "Colombia"},
+    {_id:34, Nombre: "Darren Bazeley", Seleccion: "Nueva Zelanda"},
+    {_id:35, Nombre: "Ståle Solbakken", Seleccion: "Noruega"},
+    {_id:36, Nombre: "Rodolfo Arruabarrena", Seleccion: "Emiratos Arabes Unidos"},
+]);
+
+
+/** Verificamos las inserciones realizadas **/
+
+db.Espectadores.count()
+db.Equipos.count()
+db.DirectoresTecnicos.count()
+
+
+/** Verificamos la distribución de la información ingresada **/  //Consola 3//
+
+shard1 = new Mongo("localhost:20000")
+shard1DB = shard1.getDB("Mundial")
+shard1DB.Espectadores.count()
+
+shard2 = new Mongo("localhost:20001")
+shard2DB = shard2.getDB("Mundial")
+shard2DB.Espectadores.count()
+
+shard3 = new Mongo("localhost:20002")
+shard3DB = shard3.getDB("Mundial")
+shard3DB.Espectadores.count()
+
+
+/** Como verificamos su distribución, notamos que no están distribuidos de forma uniforme en los shards **/
+
+/**Activamos el sharding **/  //Consola 2 - Balancer//
+
+shard1 = new Mongo("localhost:20006")
+
+/** Verificamos su estado **/
+
+sh.status()
+
+/** Habilitados el sharding en la base de datos **/
+
+sh.enableSharding("Mundial")
+
+/** Antes de activarlo en todos los shards, creamos un índice **/
+
+db.Espectadores.ensureIndex({_id : 1})
+
+/** Ahora se determina la colección bajo el nombre del índice **/
+
+sh.shardCollection("Mundial.Espectadores", {_id: 1})
+
+
+
+/** A partir de este momento, podemos ejecutar el balanceador **/
+
+sh.setBalancerState(true)
+sh.isBalancerRunning()
+
+/** Unos minutos después podemos verificar el estado de ejecución del balancer **/
+
+sh.getBalancerState()
+
+
+
+
+/** Por último detenemos todo el proceso del cluster desde la consola 1 **/
+
+cluster.stop()
+
+
+
+
+
